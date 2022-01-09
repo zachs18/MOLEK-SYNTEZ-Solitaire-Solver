@@ -1,0 +1,14 @@
+[package]
+name = "tis_100_solitaire"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+image = { optional = true, version = "0.23"}
+lazy_static = { optional = true, version = "1.4"}
+
+[features]
+default = ["image"]
+image = ["dep:image", "lazy_static"]
