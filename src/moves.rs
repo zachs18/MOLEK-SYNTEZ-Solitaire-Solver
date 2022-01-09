@@ -18,7 +18,7 @@ impl Move {
             ).collect();
         position_pairs.iter().copied()
             .flat_map(
-                |(from, to)| (1..9).map(
+                |(from, to)| (1..=9).map(
                     move |count| Normal { from, to, count: NonZeroUsize::new(count).unwrap() }
                 )
             ).chain(
