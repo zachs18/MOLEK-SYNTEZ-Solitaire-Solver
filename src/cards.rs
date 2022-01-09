@@ -210,7 +210,7 @@ impl<'a> Board<'a> {
         }
         if found.len() != 36 { return None; }
         let x_values: BTreeSet<u32> = found.iter().map(|((x, _y), _card)| *x).collect();
-        let y_values: BTreeSet<u32> = found.iter().map(|((_x, y), _card)| *y).collect();
+        let y_values: BTreeSet<u32> = found.iter().map(|((_x, y), _card)| *y).take(6).collect(); // take(6) to ignore numbers on the bottom of cards, since the values are sorted top->bottom
         let mut columns: [Vec<Card>; 6] = [(); 6].map(|_| Vec::with_capacity(6));
         for y_value in y_values {
             for (i, x_value) in x_values.iter().copied().enumerate() {
