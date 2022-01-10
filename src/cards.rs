@@ -1,6 +1,8 @@
 use std::collections::{VecDeque, HashSet, BinaryHeap, HashMap, BTreeSet};
 use std::rc::Rc;
 use crate::moves::*;
+#[cfg(feature = "thread")]
+use std::sync::{Arc, Mutex, RwLock, atomic::{AtomicBool, Ordering}};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Card {
@@ -82,6 +84,9 @@ impl Board {
     pub fn solve(self) -> Option<(Self, Vec<Move>)> {
         use crate::moves::*;
 
+        #[cfg(feature = "thread")]
+        type Rc<T> = Arc<T>;
+
         #[derive(Debug, Clone, PartialEq, Eq)]
         struct QueueItem {
             board: Rc<Board>,
@@ -114,21 +119,78 @@ impl Board {
                 (board, moves)
             }
         }
-
-        let mut seen: HashSet<Rc<Self>> = HashSet::new();
-        let mut queue = BinaryHeap::<QueueItem>::with_capacity(1024);
-        let all_moves = &Move::all_moves();
-        queue.push((Rc::new(self), vec![]).into());
-        while let Some((board, moves)) = queue.pop().map(Into::into) {
-            if seen.contains(&board) { continue; }
-            seen.insert(Rc::clone(&board));
-            for move_ in all_moves {
-                if let Some(board) = move_.apply(&*board) {
-                    let moves = moves.iter().copied().chain(Some(*move_)).collect();
-                    if board.is_solved() { return Some((board, moves)); }
-                    queue.push((Rc::new(board), moves).into());
+        #[cfg(not(feature = "thread"))]
+        {
+            let mut seen: HashSet<Rc<Self>> = HashSet::new();
+            let mut queue = BinaryHeap::<QueueItem>::with_capacity(1024);
+            let all_moves = &Move::all_moves();
+            queue.push((Rc::new(self), vec![]).into());
+//            let mut counter = 0;
+            while let Some((board, moves)) = queue.pop().map(Into::into) {
+                if seen.contains(&board) { continue; }
+                seen.insert(Rc::clone(&board));
+//                if counter % 256 == 0 {
+//                    println!("\x1b[H\x1b[2J\x1b[3J{} ({}): \n{}\n{:?}", queue.len(), board.score(), board.to_string(), moves);
+//                }
+//                counter += 1;
+                for move_ in all_moves { //board.possible_moves() {
+                    if let Some(board) = move_.apply(&*board) {
+                        let moves = moves.iter().copied().chain(Some(*move_)).collect();
+                        if board.is_solved() { return Some((board, moves)); }
+                        queue.push((Rc::new(board), moves).into());
+                    }
                 }
             }
+        }
+        #[cfg(feature = "thread")]
+        {
+            let seen: Arc<RwLock<HashSet<Rc<Self>>>> = Arc::new(RwLock::new(HashSet::new()));
+            let queue: Arc<Mutex<BinaryHeap<QueueItem>>> = Arc::new(Mutex::new({
+                let mut queue = BinaryHeap::<QueueItem>::with_capacity(1024);
+                queue.push((Rc::new(self), vec![]).into());
+                queue
+            }));
+            let result: Arc<Mutex<Option<(Self, Vec<Move>)>>> = Arc::new(Mutex::new(None));
+            let finished: Arc<AtomicBool> = Arc::new(false.into());
+            let all_moves = Arc::new(Move::all_moves());
+            let make_worker = |thread| {
+                let seen = Arc::clone(&seen);
+                let queue = Arc::clone(&queue);
+                let result = Arc::clone(&result);
+                let finished = Arc::clone(&finished);
+                let all_moves = Arc::clone(&all_moves);
+                move || {
+//                    let mut counter = 0;
+                    while !finished.load(Ordering::Relaxed) {
+                        let top = { queue.lock().unwrap().pop().map(Into::into) };
+                        if let Some((board, moves)) = top {
+                            if seen.read().unwrap().contains(&board) { continue; }
+                            seen.write().unwrap().insert(Rc::clone(&board));
+//                            if counter % 256 == 0 {
+//                                let queue = queue.lock().unwrap();
+//                                println!("\x1b[H\x1b[2J\x1b[3J{} ({}): \n{}\n{:?}", queue.len(), board.score(), board.to_string(), moves);
+//                            }
+//                            counter += 1;
+                            for move_ in &**all_moves {
+                                if let Some(board) = move_.apply(&*board) {
+                                    let moves = moves.iter().copied().chain(Some(*move_)).collect();
+                                    if board.is_solved() {
+                                        finished.store(true, Ordering::Relaxed);
+                                        *result.lock().unwrap() = Some((board, moves));
+                                        return;
+                                    }
+                                    queue.lock().unwrap().push((Rc::new(board), moves).into());
+                                }
+                            }
+                        } else {
+                            std::thread::sleep(std::time::Duration::from_millis(10));
+                        }
+                    }
+                }
+            };
+            let workers: Vec<_> = (0..num_cpus::get()).map(|thread| std::thread::spawn(make_worker(thread))).collect();
+            workers.into_iter().for_each(|t| t.join().unwrap());
+            return Arc::try_unwrap(result).unwrap().into_inner().unwrap();
         }
         None
     }
