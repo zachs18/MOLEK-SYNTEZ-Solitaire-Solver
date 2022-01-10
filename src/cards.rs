@@ -64,12 +64,7 @@ impl<'a> Board<'a> {
         let mut queue = VecDeque::with_capacity(1024);
         let all_moves = &Move::all_moves();
         queue.push_back((Rc::new(self), vec![]));
-        let mut counter = 0;
         while let Some((board, moves)) = queue.pop_front() {
-            if counter % 128 == 0 {
-                print!("{} {:?}\x1b[0K\n\x1b[A", queue.len(), moves);
-            }
-            counter += 1;
             if seen.contains(&board) { continue; }
             seen.insert(Rc::clone(&board));
             for move_ in all_moves {
@@ -103,6 +98,7 @@ impl<'a> Board<'a> {
         impl<'a> std::cmp::Ord for QueueItem<'a> {
             fn cmp(&self, other: &Self) -> std::cmp::Ordering {
                 self.board.score().cmp(&other.board.score()).reverse() // max-heap
+                    .then_with(|| self.moves.len().cmp(&other.moves.len()).reverse())
                     .then_with(|| self.board.cmp(&other.board))
                     .then_with(|| self.moves.cmp(&other.moves))
             }
@@ -182,7 +178,7 @@ impl<'a> Board<'a> {
             ).collect();
         }
 
-        let mut found: HashMap<(u32, u32), Card> = HashMap::with_capacity(36);
+        let mut found: HashMap<(u32, u32), Card> = HashMap::with_capacity(36+6); // +6 for possible bottom numbers
 
         fn images_same<G1, G2, P>(i1: &G1, i2: &G2) -> bool
             where
@@ -208,9 +204,15 @@ impl<'a> Board<'a> {
                 }
             }
         }
-        if found.len() != 36 { return None; }
-        let x_values: BTreeSet<u32> = found.iter().map(|((x, _y), _card)| *x).collect();
-        let y_values: BTreeSet<u32> = found.iter().map(|((_x, y), _card)| *y).take(6).collect(); // take(6) to ignore numbers on the bottom of cards, since the values are sorted top->bottom
+//        for ((x, y), card) in &found {
+//            println!("({},{}): {:?}", x, y, card);
+//        }
+        let y_values: BTreeSet<u32> = found.iter().map(|((_x, y), _card)| *y).collect();
+        let y_values: BTreeSet<u32> = y_values.into_iter().take(6).collect(); // take(6) to ignore numbers on the bottom of cards, since the values are sorted top->bottom
+        let x_values: BTreeSet<u32> = found.iter().filter_map(
+            // Ensure that the bottom number on the top card is not counted
+            |((x, y), _card)| if y_values.contains(&y) { Some(*x) } else { None }
+        ).collect();
         let mut columns: [Vec<Card>; 6] = [(); 6].map(|_| Vec::with_capacity(6));
         for y_value in y_values {
             for (i, x_value) in x_values.iter().copied().enumerate() {

@@ -1,3 +1,6 @@
+#[cfg(feature = "image")]
+extern crate image_ as image;
+
 pub mod cards;
 pub mod moves;
 

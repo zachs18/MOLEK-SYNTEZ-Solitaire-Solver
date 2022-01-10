@@ -6,9 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-image = { optional = true, version = "0.23"}
+image_ = { package = "image", optional = true, version = "0.23"}
 lazy_static = { optional = true, version = "1.4"}
+num_cpus = { optional = true, version = "*" }
 
 [features]
 default = ["image"]
-image = ["dep:image", "lazy_static"]
+image = ["image_", "lazy_static"]
+thread = ["num_cpus"]
