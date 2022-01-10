@@ -1,5 +1,6 @@
 use std::collections::{VecDeque, HashSet, BinaryHeap, HashMap, BTreeSet};
 use std::rc::Rc;
+use std::num::NonZeroUsize;
 use crate::moves::*;
 #[cfg(feature = "thread")]
 use std::sync::{Arc, Mutex, RwLock, atomic::{AtomicBool, Ordering}};
@@ -31,6 +32,34 @@ impl Card {
             K => T,
             T => return None,
         })
+    }
+    pub fn to_str(&self) -> &'static str {
+        use Card::*;
+        match self {
+            Six => "6",
+            Seven => "7",
+            Eight => "8",
+            Nine => "9",
+            Ten => "X",
+            V => "V",
+            D => "D",
+            K => "K",
+            T => "T",
+        }
+    }
+    pub fn to_str_cheat(&self) -> &'static str {
+        use Card::*;
+        match self {
+            Six => "\x1b[30;107m6\x1b[0m",
+            Seven => "\x1b[30;107m7\x1b[0m",
+            Eight => "\x1b[30;107m8\x1b[0m",
+            Nine => "\x1b[30;107m9\x1b[0m",
+            Ten => "\x1b[30;107mX\x1b[0m",
+            V => "\x1b[30;107mV\x1b[0m",
+            D => "\x1b[30;107mD\x1b[0m",
+            K => "\x1b[30;107mK\x1b[0m",
+            T => "\x1b[30;107mT\x1b[0m",
+        }
     }
 }
 
@@ -219,6 +248,64 @@ impl Board {
             }
         }
         score
+    }
+    pub fn possible_moves(&self) -> Vec<Move> {
+        let mut moves = Vec::with_capacity(100);
+        for (from, from_col) in self.columns.iter().enumerate() {
+            match from_col {
+                Column::Solved => {},
+                Column::Unsolved { cheat: Some(cheat), .. } => {
+                    for (to, to_col) in self.columns.iter().enumerate() {
+                        match to_col {
+                            Column::Solved => {},
+                            Column::Unsolved { cheat: Some(_), .. } => {},
+                            Column::Unsolved { cards: to_cards, cheat: None } => {
+                                if &to_cards[..] == &[] || to_cards.last() == Some(cheat) {
+                                    moves.push(Move::UnCheat { from, to });
+                                }
+                            },
+                        };
+                    }
+                },
+                Column::Unsolved { cards: from_cards, cheat: None } => {
+                    for (to, to_col) in self.columns.iter().enumerate() {
+                        match to_col {
+                            Column::Solved => {},
+                            Column::Unsolved { cheat: Some(_), .. } => {},
+                            Column::Unsolved { cards: to_cards, cheat: None } => {
+                                // TODO
+                                moves.push(Move::Cheat { from, to });
+                                moves.extend((1..=9).map(|count: usize| Move::Normal { from, to, count: NonZeroUsize::try_from(count).unwrap() }));
+                            },
+                        };
+                    }
+                },
+            };
+        }
+        moves
+    }
+    pub fn to_string(&self) -> String {
+        let mut columns: Vec<Box<dyn Iterator<Item=&'static str>>> = self.columns.iter().map(
+            |column| -> Box<dyn Iterator<Item=&'static str>> { match column {
+                Column::Solved => Box::new(std::iter::once("S")),
+                Column::Unsolved { cards, cheat } => Box::new(
+                    cards.iter().map(Card::to_str).chain(cheat.iter().map(Card::to_str_cheat))
+                ),
+            }}
+        ).collect();
+        let mut result = String::with_capacity(256);
+        loop {
+            let row: Vec<Option<&'static str>> = columns.iter_mut().map(Iterator::next).collect();
+            if row.iter().all(Option::is_none) { break; }
+            for card in row {
+                match card {
+                    Some(card) => { result += card; result += " "; },
+                    None => { result += "  "; },
+                }
+            }
+            result += "\n";
+        }
+        result
     }
     #[cfg(feature = "image")]
     pub fn from_image(image: image::GrayImage) -> Option<Self> {
