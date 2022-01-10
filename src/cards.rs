@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::{VecDeque, HashSet, BinaryHeap, HashMap, BTreeSet};
 use std::rc::Rc;
 use crate::moves::*;
@@ -34,20 +33,20 @@ impl Card {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Board<'a> {
-    pub columns: Vec<Column<'a>>,
+pub struct Board {
+    pub columns: Vec<Column>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Column<'a> {
+pub enum Column {
     Solved,
     Unsolved {
-        cards: Cow<'a, [Card]>,
+        cards: Vec<Card>,
         cheat: Option<Card>,
     },
 }
 
-impl<'a> Board<'a> {
+impl Board {
     pub fn is_solved(&self) -> bool {
         for column in self.columns.iter() {
             match column {
@@ -84,18 +83,18 @@ impl<'a> Board<'a> {
         use crate::moves::*;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
-        struct QueueItem<'a> {
-            board: Rc<Board<'a>>,
+        struct QueueItem {
+            board: Rc<Board>,
             moves: Vec<Move>,
         }
 
-        impl<'a> std::cmp::PartialOrd for QueueItem<'a> {
+        impl std::cmp::PartialOrd for QueueItem {
             fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
                 Some(self.cmp(other))
             }
         }
 
-        impl<'a> std::cmp::Ord for QueueItem<'a> {
+        impl std::cmp::Ord for QueueItem {
             fn cmp(&self, other: &Self) -> std::cmp::Ordering {
                 self.board.score().cmp(&other.board.score()).reverse() // max-heap
                     .then_with(|| self.moves.len().cmp(&other.moves.len()).reverse())
@@ -104,14 +103,14 @@ impl<'a> Board<'a> {
             }
         }
 
-        impl<'a> From<(Rc<Board<'a>>, Vec<Move>)> for QueueItem<'a> {
-            fn from((board, moves): (Rc<Board<'a>>, Vec<Move>)) -> Self {
+        impl From<(Rc<Board>, Vec<Move>)> for QueueItem {
+            fn from((board, moves): (Rc<Board>, Vec<Move>)) -> Self {
                 Self { board, moves }
             }
         }
 
-        impl<'a> From<QueueItem<'a>> for (Rc<Board<'a>>, Vec<Move>) {
-            fn from(QueueItem { board, moves }: QueueItem<'a>) -> Self {
+        impl From<QueueItem> for (Rc<Board>, Vec<Move>) {
+            fn from(QueueItem { board, moves }: QueueItem) -> Self {
                 (board, moves)
             }
         }

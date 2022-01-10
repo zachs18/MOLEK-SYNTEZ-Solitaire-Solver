@@ -29,7 +29,7 @@ impl Move {
                     .map(|(from, to)| UnCheat { from, to })
             ).collect()
     }
-    pub fn apply<'a>(&self, board: &Board<'a>) -> Option<Board<'a>> {
+    pub fn apply(&self, board: &Board) -> Option<Board> {
         use Move::*;
         fn get_mut_two<'a, T>(slice: &'a mut [T], i1: usize, i2: usize) -> Option<(&'a mut T, &'a mut T)> {
             if i1 == i2 { return None; }
@@ -55,12 +55,12 @@ impl Move {
                         _ => return None,
                     };
                     let range = from.len().checked_sub(count.into())?..;
-                    let to_be_moved = from.to_mut().drain(range);
+                    let to_be_moved = from.drain(range);
                     for pair in to_be_moved.as_slice().windows(2) {
                         if pair[1].goes_on() != Some(pair[0]) { return None; }
                     }
                     if to.last().copied() != to_be_moved.as_slice()[0].goes_on() { return None; }
-                    to.to_mut().extend_from_slice(to_be_moved.as_slice());
+                    to.extend_from_slice(to_be_moved.as_slice());
                 }
                 Some(board)
             },
@@ -75,7 +75,7 @@ impl Move {
                         Column::Unsolved { ref mut cards, cheat: cheat@None } => (cards, cheat),
                         _ => return None,
                     };
-                    let card = from.to_mut().pop()?;
+                    let card = from.pop()?;
                     if to.last().copied() == card.goes_on() { return None; }
                     *to_cheat = Some(card);
                 }
@@ -94,7 +94,7 @@ impl Move {
                     };
                     let card = from_cheat.take()?;
                     if to.last().copied() != card.goes_on() { return None; }
-                    to.to_mut().push(card);
+                    to.push(card);
                 }
                 Some(board)
             },
