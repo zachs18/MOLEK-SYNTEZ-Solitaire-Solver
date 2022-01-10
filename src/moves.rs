@@ -59,7 +59,9 @@ impl Move {
                     for pair in to_be_moved.as_slice().windows(2) {
                         if pair[1].goes_on() != Some(pair[0]) { return None; }
                     }
-                    if to.last().copied() != to_be_moved.as_slice()[0].goes_on() { return None; }
+                    let goes_on = to.last().copied();
+                    // Any card can be placed on empty column
+                    if goes_on != None && goes_on != to_be_moved.as_slice()[0].goes_on() { return None; }
                     to.extend_from_slice(to_be_moved.as_slice());
                 }
                 Some(board)
@@ -75,8 +77,10 @@ impl Move {
                         Column::Unsolved { ref mut cards, cheat: cheat@None } => (cards, cheat),
                         _ => return None,
                     };
+                    let goes_on = to.last().copied();
                     let card = from.pop()?;
-                    if to.last().copied() == card.goes_on() { return None; }
+                    // Any card can be placed on empty column (so it wouldn't be cheating
+                    if goes_on == None || goes_on == card.goes_on() { return None; }
                     *to_cheat = Some(card);
                 }
                 Some(board)
@@ -92,8 +96,10 @@ impl Move {
                         Column::Unsolved { ref mut cards, cheat: None } => cards,
                         _ => return None,
                     };
+                    let goes_on = to.last().copied();
                     let card = from_cheat.take()?;
-                    if to.last().copied() != card.goes_on() { return None; }
+                    // Any card can be placed on empty column
+                    if goes_on != None && goes_on != card.goes_on() { return None; }
                     to.push(card);
                 }
                 Some(board)
