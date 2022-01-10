@@ -142,10 +142,17 @@ impl<'a> Board<'a> {
                     score -= 1024;
                 },
                 Column::Unsolved { cards, cheat: None } => {
-                    score -= (cards.len() * cards.len()) as i64; // intentionally diff from Shenzhen IO
+                    let mut depth = 1;
+                    for w in cards.windows(2).rev() {
+                        if let [c1, c2] = w {
+                            if c2.goes_on() == Some(*c1) { depth += 1; }
+                        }
+                    }
+                    score -= depth * depth;
                 },
                 Column::Unsolved { cards, cheat: Some(_) } => {
-                    score -= (cards.len() * cards.len()) as i64; // intentionally diff from Shenzhen IO
+                    // Intentionally different from no cheat, since having a cheat on top of a lot of cards is bad(?)
+                    score += (cards.len() * cards.len()) as i64;
                     score += 256;
                 },
             }
